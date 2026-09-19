@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "OFERTAS+ — Importador Mercado Livre",
+  "version": "2.0.0",
+  "description": "Importa produtos do Mercado Livre para o OFERTAS+ usando o link oficial de afiliado.",
+  "minimum_chrome_version": "120",
+  "permissions": ["storage", "clipboardRead", "tabs"],
+  "host_permissions": [
+    "https://www.mercadolivre.com.br/*",
+    "https://buscador-ofertas-diario.vercel.app/*"
+  ],
+  "action": {
+    "default_title": "Salvar no OFERTAS+",
+    "default_popup": "popup.html",
+    "default_icon": {"128": "icons/logo-512.png"}
+  },
+  "options_page": "options.html",
+  "content_scripts": [
+    {
+      "matches": ["https://www.mercadolivre.com.br/*"],
+      "js": ["ml-main.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://www.mercadolivre.com.br/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "world": "ISOLATED"
+    },
+    {
+      "matches": ["https://buscador-ofertas-diario.vercel.app/extension-connect.html"],
+      "js": ["site-connect.js"],
+      "run_at": "document_idle",
+      "world": "ISOLATED"
+    }
+  ],
+  "background": {"service_worker": "background.js"}
+}
