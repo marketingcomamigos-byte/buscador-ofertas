@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Buscador de Ofertas</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,Arial,sans-serif;background:#f5f7fb;color:#172033}
+button,input{font:inherit}
+.top{background:#fff;border-bottom:1px solid #e7eaf0;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.brand{font-size:20px;font-weight:800}.brand span{color:#6d28d9}
+.logout{border:0;background:#eef0f5;padding:10px 15px;border-radius:10px;cursor:pointer;font-weight:700}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px}
+h1{margin:0 0 6px;font-size:30px}.sub{color:#687386;margin:0 0 24px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.card{background:#fff;border:1px solid #e7eaf0;border-radius:16px;padding:20px;box-shadow:0 5px 18px rgba(20,30,50,.04)}
+.label{font-size:13px;color:#697386;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.value{font-size:34px;font-weight:850;margin-top:8px}
+.section{margin-top:22px}.section h2{font-size:19px;margin:0 0 12px}
+.tablebox{overflow:auto;background:#fff;border:1px solid #e7eaf0;border-radius:16px}
+table{width:100%;border-collapse:collapse;min-width:620px}
+th,td{text-align:left;padding:13px 16px;border-bottom:1px solid #edf0f4}
+th{font-size:12px;text-transform:uppercase;color:#697386;background:#fafbfc}
+td{font-size:14px}tr:last-child td{border-bottom:0}.storebadge{display:inline-flex;align-items:center;gap:7px;padding:5px 9px;border:1px solid #ffd58a;background:#fff7e8;color:#8a4b00;border-radius:999px;font-weight:900}.storebadge img{width:22px;height:22px;object-fit:contain;border-radius:5px;background:#fff}.ok{color:#08773a;font-weight:850}.smallmuted{font-size:11px;color:#697386}.order-ok{display:inline-block;padding:4px 8px;border-radius:999px;background:#ecfdf3;color:#08773a;font-size:10px;font-weight:850}.order-pending{display:inline-block;padding:4px 8px;border-radius:999px;background:#fff7e8;color:#8a5b00;font-size:10px;font-weight:850}.order-other{display:inline-block;padding:4px 8px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:10px;font-weight:850}.noticebox{border:1px solid #ffd58a;background:#fffaf0;color:#80520b}
+.rank{font-weight:800;width:60px}.count{font-weight:800}
+.login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.loginbox{width:100%;max-width:420px;background:#fff;padding:30px;border-radius:20px;border:1px solid #e7eaf0;box-shadow:0 15px 45px rgba(20,30,50,.08)}
+.loginbox h1{font-size:26px}.loginbox p{color:#697386}
+.field{margin:15px 0}.field label{display:block;font-size:13px;font-weight:700;margin-bottom:7px}
+.field input{width:100%;padding:13px;border:1px solid #d8dde7;border-radius:10px;outline:none}
+.field input:focus{border-color:#7c3aed}
+.primary{width:100%;border:0;background:#6d28d9;color:white;padding:13px;border-radius:10px;font-weight:800;cursor:pointer}
+.error{color:#b42318;background:#fff1f0;border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:12px;display:none}
+.loading{color:#697386}
+@media(max-width:850px){.grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.top{padding:14px 16px}.wrap{padding:22px 14px}.grid{grid-template-columns:1fr 1fr}.value{font-size:28px}h1{font-size:25px}}
+</style>
+</head>
+<body>
+
+<div id="loginView" class="login">
+  <div class="loginbox">
+    <div class="brand">Buscador <span>de Ofertas</span></div>
+    <h1>Área administrativa</h1>
+    <p>Entre com o usuário administrador cadastrado no Supabase.</p>
+    <div id="loginError" class="error"></div>
+    <form id="loginForm">
+      <div class="field">
+        <label>E-mail</label>
+        <input id="email" type="email" required autocomplete="username">
+      </div>
+      <div class="field">
+        <label>Senha</label>
+        <input id="password" type="password" required autocomplete="current-password">
+      </div>
+      <button class="primary" type="submit">Entrar no painel</button>
+    </form>
+  </div>
+</div>
+
+<div id="adminView" style="display:none">
+  <header class="top">
+    <div class="brand">Buscador <span>de Ofertas</span> · Admin</div>
+    <button id="logout" class="logout">Sair</button>
+  </header>
+
+  <main class="wrap">
+    <h1>Painel administrativo</h1>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap">
+      <p class="sub" style="margin-bottom:18px">Acompanhe buscas, cliques, lojas elegíveis e desempenho das suas campanhas de afiliado.</p>
+      <button id="refresh" class="logout" style="margin-bottom:18px">↻ Atualizar</button>
+    </div>
+
+    <div class="grid">
+      <div class="card"><div class="label">Pesquisas hoje</div><div id="today" class="value">—</div></div>
+      <div class="card"><div class="label">Total de pesquisas</div><div id="total" class="value">—</div></div>
+      <div class="card"><div class="label">Sessões únicas</div><div id="sessions" class="value">—</div></div>
+      <div class="card"><div class="label">Termos diferentes</div><div id="terms" class="value">—</div></div>
+      <div class="card"><div class="label">Cliques hoje</div><div id="clicksToday" class="value">—</div></div>
+      <div class="card"><div class="label">Total de cliques</div><div id="clicksTotal" class="value">—</div></div>
+      <div class="card"><div class="label">Taxa de clique</div><div id="ctr" class="value">—</div></div>
+      <div class="card"><div class="label">Produtos clicados</div><div id="productsClicked" class="value">—</div></div>
+    </div>
+
+    <section class="section">
+      <h2>🔥 Termos mais pesquisados</h2>
+      <div class="tablebox">
+        <table><thead><tr><th>#</th><th>Termo</th><th>Pesquisas</th></tr></thead>
+        <tbody id="topTerms"><tr><td colspan="3" class="loading">Carregando...</td></tr></tbody></table>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>🔒 Filtro automático de comissão</h2>
+      <div class="card" style="padding:16px">
+        <div style="font-weight:900;color:#08773a">ATIVO</div>
+        <div class="smallmuted" style="margin-top:6px">O site filtra os produtos no backend usando a lista de marcas que a API de afiliados da Lomadee informa como ativas, com comissão calculada acima de zero e canal sem restrição.</div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>💰 Desempenho de afiliado Lomadee</h2>
+      <div class="grid">
+        <div class="card"><div class="label">Pedidos</div><div id="ordersTotal" class="value">—</div></div>
+        <div class="card"><div class="label">Valor das vendas</div><div id="salesValue" class="value">—</div></div>
+        <div class="card"><div class="label">Comissão</div><div id="commissionValue" class="value">—</div></div>
+        <div class="card"><div class="label">Comissão pendente</div><div id="commissionPending" class="value">—</div></div>
+      </div>
+      <div id="ordersNotice" class="card" style="margin-top:14px;padding:15px;color:#697386;font-size:12px;line-height:1.6">
+        Carregando dados de pedidos da Lomadee...
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>🏪 Lojas elegíveis agora</h2>
+      <div class="tablebox">
+        <table><thead><tr><th>Loja</th><th>Comissão</th><th>Modelo</th><th>Status</th></tr></thead>
+        <tbody id="eligibleBrands"><tr><td colspan="4" class="loading">Carregando...</td></tr></tbody></table>
+      </div>
+    </section>
+
+
+    <section class="section" id="mercado-livre">
+      <h2>🟨 Mercado Livre — catálogo importado</h2>
+      <p style="color:#697386;font-size:12px;line-height:1.6;margin:0 0 12px">
+        Produtos enviados pela extensão aparecem aqui automaticamente. Se um produto estiver nesta lista, ele já foi gravado no Supabase e o link abaixo é o link de afiliado importado.
+      </p>
+      <div class="grid" style="margin-bottom:14px">
+        <div class="card"><div class="label">Produtos ativos</div><div id="mlActiveCount" class="value">—</div></div>
+        <div class="card"><div class="label">Última importação</div><div id="mlLastImport" class="value" style="font-size:16px">—</div></div>
+      </div>
+      <div class="tablebox">
+        <table><thead><tr><th>Produto</th><th>ID item</th><th>Preço</th><th>Link afiliado</th><th>Atualizado</th></tr></thead>
+        <tbody id="mercadolivreProducts"><tr><td colspan="5" class="loading">Carregando...</td></tr></tbody></table>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>🧾 Pedidos recentes da Lomadee</h2>
+      <div class="tablebox">
+        <table><thead><tr><th>Pedido</th><th>Status</th><th>Valor</th><th>Comissão</th><th>Comissão status</th><th>Data</th></tr></thead>
+        <tbody id="recentOrders"><tr><td colspan="6" class="loading">Carregando...</td></tr></tbody></table>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>🔥 Produtos mais clicados</h2>
+      <div class="tablebox">
+        <table><thead><tr><th>#</th><th>Produto</th><th>Cliques</th></tr></thead>
+        <tbody id="topProducts"><tr><td colspan="3" class="loading">Carregando...</td></tr></tbody></table>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>🕐 Pesquisas recentes</h2>
+      <div class="tablebox">
+        <table><thead><tr><th>Pesquisa</th><th>Data e hora</th></tr></thead>
+        <tbody id="recent"><tr><td colspan="2" class="loading">Carregando...</td></tr></tbody></table>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>🖱️ Cliques recentes</h2>
+      <div class="tablebox">
+        <table><thead><tr><th>Produto</th><th>Categoria</th><th>Data e hora</th></tr></thead>
+        <tbody id="recentClicks"><tr><td colspan="3" class="loading">Carregando...</td></tr></tbody></table>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+const SUPABASE_URL = "https://kpvunszwaqykxrefuktp.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwdnVuc3p3YXF5a3hyZWZ1a3RwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk3MjQyMDEsImV4cCI6MjEwNTMwMDIwMX0.Al3Mz1uQ855tHzOdjN6UAvNCqTy5eLkjHJQum77KwoA";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const $ = id => document.getElementById(id);
+
+function showError(msg){
+  $("loginError").textContent = msg;
+  $("loginError").style.display = "block";
+}
+function formatDate(value){
+  return new Date(value).toLocaleString("pt-BR", {dateStyle:"short", timeStyle:"short"});
+}
+function cleanProductName(v){return String(v??'').replace(/\s+/g,' ').replace(/\s*[-–—|]\s*R\$\s*\d[\d.]*,\d{1,2}\s*$/i,'').trim();}
+
+async function isAdmin(){
+  const {data:{user}} = await sb.auth.getUser();
+  if(!user) return false;
+  const {data,error} = await sb.from("admin_users").select("user_id").eq("user_id",user.id).maybeSingle();
+  return !error && !!data;
+}
+
+
+function moneyBRL(value){
+  const n=Number(value||0);
+  return Number.isFinite(n)
+    ? n.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})
+    : "—";
+}
+
+function normalizeOrder(item){
+  const d=item?.data && typeof item.data==="object" ? item.data : item;
+  return {
+    id:String(d?.orderId||d?.id||""),
+    status:String(d?.status||""),
+    value:Number(d?.value||0),
+    commission:Number(d?.commission||0),
+    commissionStatus:String(d?.commissionStatus||""),
+    createdAt:d?.createdAt||null
+  };
+}
+
+function statusClass(value){
+  const s=String(value||"").toLowerCase();
+  if(/approved|approved|paid|confirmed|completed/.test(s)) return "order-ok";
+  if(/pending|waiting|analysis/.test(s)) return "order-pending";
+  return "order-other";
+}
+
+async function loadLomadeeOrders(){
+  const notice=$("ordersNotice");
+  const tbody=$("recentOrders");
+  try{
+    const {data:{session}}=await sb.auth.getSession();
+    const headers={"Accept":"application/json"};
+    if(session?.access_token) headers.Authorization=`Bearer ${session.access_token}`;
+
+    const r=await fetch("/api/admin-orders?limit=50&page=1",{headers});
+    const data=await r.json().catch(()=>({}));
+
+    if(r.status===403 && data?.requiresScope){
+      $("ordersTotal").textContent="—";
+      $("salesValue").textContent="—";
+      $("commissionValue").textContent="—";
+      $("commissionPending").textContent="—";
+      notice.className="card noticebox";
+      notice.innerHTML="<strong>Pedidos/comissões ainda não sincronizados.</strong><br>O endpoint da Lomadee exige o escopo <code>orders:read</code>. A chave atual do OFERTAS+ foi criada sem esse escopo. Quando você decidir ativá-lo, não será necessário alterar o site público.";
+      tbody.innerHTML='<tr><td colspan="6">Adicione <strong>orders:read</strong> à chave da API Lomadee para habilitar esta área.</td></tr>';
+      return;
+    }
+
+    if(!r.ok) throw new Error(data?.error||"Não foi possível consultar os pedidos.");
+
+    const orders=(Array.isArray(data.data)?data.data:[]).map(normalizeOrder);
+    const total=Number(data?.meta?.total||orders.length);
+    const sales=orders.reduce((s,o)=>s+(Number.isFinite(o.value)?o.value:0),0);
+    const comm=orders.reduce((s,o)=>s+(Number.isFinite(o.commission)?o.commission:0),0);
+    const pending=orders.filter(o=>/pending|waiting|analysis/i.test(o.commissionStatus)).reduce((s,o)=>s+(Number.isFinite(o.commission)?o.commission:0),0);
+
+    $("ordersTotal").textContent=total.toLocaleString("pt-BR");
+    $("salesValue").textContent=moneyBRL(sales);
+    $("commissionValue").textContent=moneyBRL(comm);
+    $("commissionPending").textContent=moneyBRL(pending);
+
+    notice.className="card";
+    notice.innerHTML="<strong>Sincronizado com a Lomadee.</strong><br>Os valores abaixo refletem os pedidos retornados pela API para sua conta. A comissão pode ter status pendente e não representa necessariamente valor já disponível para saque.";
+
+    tbody.innerHTML=orders.length
+      ? orders.slice(0,20).map(o=>`<tr>
+          <td>${escapeHtml(o.id||"—")}</td>
+          <td><span class="${statusClass(o.status)}">${escapeHtml(o.status||"—")}</span></td>
+          <td>${moneyBRL(o.value)}</td>
+          <td>${moneyBRL(o.commission)}</td>
+          <td><span class="${statusClass(o.commissionStatus)}">${escapeHtml(o.commissionStatus||"—")}</span></td>
+          <td>${o.createdAt?formatDate(o.createdAt):"—"}</td>
+        </tr>`).join("")
+      : '<tr><td colspan="6">Nenhum pedido retornado pela Lomadee.</td></tr>';
+  }catch(err){
+    notice.className="card noticebox";
+    notice.innerHTML=`<strong>Não foi possível sincronizar os pedidos.</strong><br>${escapeHtml(err.message||"Erro desconhecido")}`;
+    tbody.innerHTML='<tr><td colspan="6">Dados de pedidos indisponíveis.</td></tr>';
+  }
+}
+
+
+async function loadMercadoLivreProducts(){
+  const tbody=$("mercadolivreProducts");
+  if(!tbody) return;
+  try{
+    const {data,error}=await sb.from("mercadolivre_products")
+      .select("name,item_id,price,affiliate_url,updated_at")
+      .eq("active",true)
+      .order("updated_at",{ascending:false})
+      .limit(50);
+    if(error) throw error;
+    const rows=data||[];
+    if($("mlActiveCount")) $("mlActiveCount").textContent=rows.length.toLocaleString("pt-BR");
+    if($("mlLastImport")) $("mlLastImport").textContent=rows[0]?.updated_at?formatDate(rows[0].updated_at):"—";
+    tbody.innerHTML=rows.length
+      ? rows.map(r=>`<tr><td>${escapeHtml(cleanProductName(r.name||"—"))}</td><td>${escapeHtml(r.item_id||"—")}</td><td>${moneyBRL(r.price)}</td><td><a href="${escapeHtml(r.affiliate_url||"#")}" target="_blank" rel="noopener">Abrir link afiliado</a></td><td>${formatDate(r.updated_at)}</td></tr>`).join("")
+      : '<tr><td colspan="5">Nenhum produto do Mercado Livre importado ainda.</td></tr>';
+  }catch(err){
+    tbody.innerHTML=`<tr><td colspan="5">Não foi possível carregar os produtos importados. Execute o SQL da V19 no Supabase.</td></tr>`;
+    console.error("Mercado Livre imports:",err);
+  }
+}
+
+async function loadDashboard(){
+  if(!(await isAdmin())) {
+    await sb.auth.signOut();
+    $("loginView").style.display="flex";
+    $("adminView").style.display="none";
+    showError("Este usuário não possui acesso administrativo.");
+    return;
+  }
+
+  $("loginView").style.display="none";
+  $("adminView").style.display="block";
+
+  const todayStart = new Date();
+  todayStart.setHours(0,0,0,0);
+  const todayIso = todayStart.toISOString();
+
+  const [
+    searchTotalRes,
+    searchTodayRes,
+    searchRowsRes,
+    clickTotalRes,
+    clickTodayRes,
+    clickRowsRes
+  ] = await Promise.all([
+    sb.from("searches").select("id",{count:"exact",head:true}),
+    sb.from("searches").select("id",{count:"exact",head:true}).gte("created_at",todayIso),
+    sb.from("searches").select("query,normalized_query,session_id,created_at").order("created_at",{ascending:false}).limit(5000),
+    sb.from("offer_clicks").select("id",{count:"exact",head:true}),
+    sb.from("offer_clicks").select("id",{count:"exact",head:true}).gte("created_at",todayIso),
+    sb.from("offer_clicks").select("product_key,product_title,product_category,created_at,session_id").order("created_at",{ascending:false}).limit(5000)
+  ]);
+
+  const searchError = searchRowsRes.error || searchTotalRes.error || searchTodayRes.error;
+  const clickError = clickRowsRes.error || clickTotalRes.error || clickTodayRes.error;
+
+  if(searchError){
+    $("topTerms").innerHTML='<tr><td colspan="3">Não foi possível carregar as pesquisas.</td></tr>';
+    $("recent").innerHTML='<tr><td colspan="2">Não foi possível carregar as pesquisas.</td></tr>';
+    console.error("Erro em pesquisas:", searchError);
+  }
+
+  const searches = searchRowsRes.data || [];
+  const clicks = clickRowsRes.data || [];
+
+  const total = searchTotalRes.count || 0;
+  const today = searchTodayRes.count || 0;
+  const sessions = new Set(searches.map(r => r.session_id).filter(Boolean)).size;
+  const terms = new Set(searches.map(r => (r.normalized_query || r.query || "").trim().toLowerCase()).filter(Boolean)).size;
+
+  const clicksTotal = clickTotalRes.count || 0;
+  const clicksToday = clickTodayRes.count || 0;
+  const productKeys = new Set(clicks.map(r => r.product_key).filter(Boolean));
+  const ctr = total ? ((clicksTotal / total) * 100).toFixed(1) + "%" : "0.0%";
+
+  $("today").textContent = today.toLocaleString("pt-BR");
+  $("total").textContent = total.toLocaleString("pt-BR");
+  $("sessions").textContent = sessions.toLocaleString("pt-BR");
+  $("terms").textContent = terms.toLocaleString("pt-BR");
+  $("clicksToday").textContent = clicksToday.toLocaleString("pt-BR");
+  $("clicksTotal").textContent = clicksTotal.toLocaleString("pt-BR");
+  $("ctr").textContent = ctr;
+  $("productsClicked").textContent = productKeys.size.toLocaleString("pt-BR");
+
+  const counts = {};
+  const display = {};
+  searches.forEach(r=>{
+    const key=(r.normalized_query || r.query || "").trim().toLowerCase();
+    if(!key) return;
+    counts[key]=(counts[key]||0)+1;
+    if(!display[key]) display[key]=String(r.query||key).trim();
+  });
+
+  const top = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  $("topTerms").innerHTML = top.length
+    ? top.map((x,i)=>`<tr><td class="rank">${i+1}</td><td>${escapeHtml(display[x[0]])}</td><td class="count">${x[1]}</td></tr>`).join("")
+    : '<tr><td colspan="3">Nenhuma pesquisa registrada ainda.</td></tr>';
+
+  const clickCounts = {};
+  const clickDisplay = {};
+  clicks.forEach(r=>{
+    const key=String(r.product_key||"").trim() || String(r.product_title||"").trim().toLowerCase();
+    if(!key) return;
+    clickCounts[key]=(clickCounts[key]||0)+1;
+    if(!clickDisplay[key]) clickDisplay[key]=String(r.product_title||key).trim();
+  });
+
+  const topClicks = Object.entries(clickCounts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  $("topProducts").innerHTML = topClicks.length
+    ? topClicks.map((x,i)=>`<tr><td class="rank">${i+1}</td><td>${escapeHtml(clickDisplay[x[0]])}</td><td class="count">${x[1]}</td></tr>`).join("")
+    : '<tr><td colspan="3">Nenhum clique registrado ainda.</td></tr>';
+
+  const recent = searches.slice(0,20);
+  $("recent").innerHTML = recent.length
+    ? recent.map(r=>`<tr><td>${escapeHtml(r.query||"")}</td><td>${formatDate(r.created_at)}</td></tr>`).join("")
+    : '<tr><td colspan="2">Nenhuma pesquisa registrada ainda.</td></tr>';
+
+  const recentClicks = clicks.slice(0,20);
+  $("recentClicks").innerHTML = recentClicks.length
+    ? recentClicks.map(r=>`<tr><td>${escapeHtml(r.product_title||r.product_key||"")}</td><td>${escapeHtml(r.product_category||"")}</td><td>${formatDate(r.created_at)}</td></tr>`).join("")
+    : '<tr><td colspan="3">Nenhum clique registrado ainda.</td></tr>';
+
+  loadEligibleBrands();
+  loadMercadoLivreProducts();
+  loadLomadeeOrders();
+
+  if(clickError){
+    $("clicksToday").textContent = "—";
+    $("clicksTotal").textContent = "—";
+    $("ctr").textContent = "—";
+    $("productsClicked").textContent = "—";
+    $("topProducts").innerHTML='<tr><td colspan="3">A tabela de cliques ainda não foi configurada no Supabase.</td></tr>';
+    $("recentClicks").innerHTML='<tr><td colspan="3">A tabela de cliques ainda não foi configurada no Supabase.</td></tr>';
+    console.error("Erro em cliques:", clickError);
+  }
+}
+async function loadEligibleBrands(){
+  const tbody=$("eligibleBrands");
+  if(!tbody) return;
+  try{
+    const {data:{session}} = await sb.auth.getSession();
+    const headers={"Accept":"application/json"};
+    if(session?.access_token) headers.Authorization=`Bearer ${session.access_token}`;
+    const r=await fetch("/api/eligible-brands",{headers});
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(data.error||"Não foi possível consultar as lojas elegíveis.");
+    const brands=Array.isArray(data.data)?data.data:[];
+    tbody.innerHTML=brands.length
+      ? brands.map(b=>`<tr><td><span class="storebadge">${b.logo?`<img src="${escapeHtml(b.logo)}" alt="" loading="lazy">`:""}${escapeHtml(b.name)}</span></td><td>${Number(b.commissionRate||0).toLocaleString("pt-BR")} %</td><td>${escapeHtml(String(b.commissionModel||"").toUpperCase()||"—")}</td><td class="ok">Elegível</td></tr>`).join("")
+      : '<tr><td colspan="4">Nenhuma loja elegível encontrada neste momento.</td></tr>';
+  }catch(err){
+    tbody.innerHTML=`<tr><td colspan="4">${escapeHtml(err.message||"Erro")}</td></tr>`;
+  }
+}
+
+function escapeHtml(v){
+  return String(v).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
+}
+
+$("loginForm").addEventListener("submit", async e=>{
+  e.preventDefault();
+  $("loginError").style.display="none";
+  const {error} = await sb.auth.signInWithPassword({
+    email:$("email").value.trim(),
+    password:$("password").value
+  });
+  if(error){ showError(error.message); return; }
+  await loadDashboard();
+});
+
+$("logout").addEventListener("click", async ()=>{
+  await sb.auth.signOut();
+  $("adminView").style.display="none";
+  $("loginView").style.display="flex";
+  $("password").value="";
+});
+
+$("refresh").addEventListener("click", loadDashboard);
+
+// Ponte segura para a extensão OFERTAS+ Amazon obter a sessão ATUAL do Supabase.
+// O painel administrativo é a fonte da sessão renovável.
+async function sendAmazonExtensionSession(){
+  if(new URLSearchParams(location.search).get("ofertas_plus_amazon_connect") !== "1") return false;
+  try{
+    let session=null;
+    try{
+      const refreshed=await sb.auth.refreshSession();
+      session=refreshed?.data?.session||null;
+    }catch(_){}
+    if(!session){
+      const current=await sb.auth.getSession();
+      session=current?.data?.session||null;
+    }
+    if(!session?.access_token){
+      window.postMessage({type:"OFERTAS_PLUS_AMAZON_SESSION",source:"ofertas-plus-amazon-page",accessToken:"",expiresAt:0,error:"Faça login no painel administrativo do OFERTAS+ antes de conectar a extensão."},"*");
+      return false;
+    }
+    const r=await fetch('/api/amazon-extension-connect',{method:'POST',headers:{Authorization:`Bearer ${session.access_token}`,Accept:'application/json'}});
+    const payload=await r.json().catch(()=>({}));
+    if(!r.ok || !payload?.token){
+      window.postMessage({type:"OFERTAS_PLUS_AMAZON_SESSION",source:"ofertas-plus-amazon-page",accessToken:"",expiresAt:0,error:payload?.error||`Falha na conexão (${r.status})`},"*");
+      return false;
+    }
+    window.postMessage({type:"OFERTAS_PLUS_AMAZON_SESSION",source:"ofertas-plus-amazon-page",accessToken:session.access_token,extensionToken:payload.token,expiresAt:Number(payload.expiresAt||0)},"*");
+    return true;
+  }catch(err){
+    window.postMessage({type:"OFERTAS_PLUS_AMAZON_SESSION",source:"ofertas-plus-amazon-page",accessToken:"",expiresAt:0,error:err?.message||"Não foi possível obter a sessão atual."},"*");
+    return false;
+  }
+}
+window.addEventListener("message", async (event) => {
+  if (event.source !== window) return;
+  if (event.data?.type !== "OFERTAS_PLUS_AMAZON_GET_SESSION" || event.data?.source !== "ofertas-plus-amazon-extension") return;
+  await sendAmazonExtensionSession();
+});
+
+sb.auth.onAuthStateChange((event)=>{
+  if(event === "SIGNED_IN") { loadDashboard(); setTimeout(sendAmazonExtensionSession,150); setTimeout(sendAmazonExtensionSession,700); }
+  if(event === "TOKEN_REFRESHED") sendAmazonExtensionSession();
+});
+if(new URLSearchParams(location.search).get("ofertas_plus_amazon_connect") === "1") {
+  setTimeout(sendAmazonExtensionSession,400);
+}
+
+setInterval(async ()=>{
+  const {data:{user}} = await sb.auth.getUser();
+  if(user) loadDashboard();
+}, 30000);
+
+loadDashboard();
+</script>
+</body>
+</html>
